@@ -1,0 +1,122 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Чат</title>
+    <link rel="stylesheet" type="text/css" href="/css/site.css" />
+</head>
+<body>
+    <div class="text-center">
+        <h1>Чат-кімната</h1>
+    </div>
+    <div class="main">
+        <div class="center">
+            <div id="loginBlock">
+                Введіть ім'я:<br />
+                <input id="txtUserName" type="text" class="form-control" />
+                <input id="btnLogin" type="button" value="Войти" class="btn btn-default" />
+            </div>
+        </div>
+
+        <div class="left">
+            <div id="chatBody">
+                <div id="header"></div>
+                <div id="inputForm">
+                    <input type="text" id="message" class="form-control" />
+                    <input type="button" id="sendmessage" value="Отправить" class="btn btn-default" />
+                </div>
+
+                <div>
+                    <p><b>Все пользователи:</b></p>
+                    <ul id="chatusers"></ul>
+                </div>
+            </div>
+        </div>
+        <input id="hdId" type="hidden" />
+        <input id="username" type="hidden" />
+    </div>
+<hr>
+    <div id="chatroom" class="chat"></div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/6.0.1/signalr.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.4.min.js" integrity="sha256-oP6HI9z1XaZNBrJURtCoUT5SUnxFr8s3BzRl+cbzUq8=" crossorigin="anonymous"></script>
+    <script>
+        $(function () {
+            $('#chatBody').hide();
+            $('#loginBlock').show();
+            const hubConnection = new signalR.HubConnectionBuilder()
+                .withUrl("/chat")
+                .build();
+            hubConnection.on("AddMessage", function (name, message) {
+                $('#chatroom').append('<p><b>' + htmlEncode(name)
+                    + '</b>: <i>' + htmlEncode(message) + '</i></p>');
+            });
+
+            hubConnection.on("Connected", function (id, userName, allUsers) {
+
+                $('#loginBlock').hide();
+                $('#chatBody').show();
+                $('#hdId').val(id);
+                $('#username').val(userName);
+                $('#header').html('<h3>Добро пожаловать, ' + userName + '</h3>');
+
+                for (i = 0; i < allUsers.length; i++) {
+
+                    AddUser(allUsers[i].connectionId, allUsers[i].name);
+                }
+            });
+
+            hubConnection.on("NewUserConnected", function (id, name) {
+
+                AddUser(id, name);
+            });
+
+            hubConnection.on("UserDisconnected", function (id, userName) {
+
+                $('#' + id).remove();
+            });
+
+            hubConnection.start()
+                .then(function () {
+                    $('#sendmessage').click(function () {
+                        hubConnection.invoke("Send", $('#username').val(), $('#message').val())
+                            .catch(function (err) {
+                                return console.error(err.toString());
+                            });
+                        $('#message').val('');
+                    });
+
+                    $("#btnLogin").click(function () {
+                        let name = $("#txtUserName").val();
+                        if (name.length > 0) {
+                            hubConnection.invoke("Connect", name)
+                                .catch(function (err) {
+                                    return console.error(err.toString());
+                                });
+                        }
+                        else {
+                            alert("Введите имя");
+                        }
+                    });
+                })
+                .catch(function (err) {
+                    return console.error(err.toString());
+                });
+        });
+
+        function htmlEncode(value) {
+            let encodedValue = $('<div />').text(value).html();
+            return encodedValue;
+        }
+
+        function AddUser(id, name) {
+
+            let userId = $('#hdId').val();
+
+            if (name !== undefined && userId !== id) {
+
+                $("#chatusers").append('<li id="' + id + '"><b>' + name + '</b></li>');
+            }
+        }
+    </script>
+</body>
+</html>
